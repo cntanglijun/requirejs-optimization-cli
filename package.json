@@ -1,0 +1,34 @@
+{
+  "name": "requirejs-optimization-cli",
+  "version": "0.0.1-alpha",
+  "bin": {
+    "rc": "./bin/main"
+  },
+  "description": "requirejs模块优化工具",
+  "dependencies": {
+    "colors": "^1.1.2",
+    "commander": "^2.9.0",
+    "fs-extra": "^0.30.0",
+    "glob": "^7.0.5",
+    "glob-watcher": "^3.0.0",
+    "requirejs": "^2.2.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": ""
+  },
+  "author": "cntanglijun",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cntanglijun/requirejs-optimization-cli.git"
+  },
+  "keywords": [
+    "requirejs",
+    "optimization"
+  ],
+  "bugs": {
+    "url": "https://github.com/cntanglijun/requirejs-optimization-cli/issues"
+  },
+  "homepage": "https://github.com/cntanglijun/requirejs-optimization-cli#readme"
+}

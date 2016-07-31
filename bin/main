@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+
+'use strict';
+
+const path = require('path');
+const http = require('http');
+const fs = require('fs');
+const colors = require('colors');
+const fse = require('fs-extra');
+const program = require('commander');
+const requirejs = require('requirejs');
+const glob = require('glob');
+const watch = require('glob-watcher');
+const pkg = require('../package.json');
+
+const log = console.log;
+
+program
+  .version(pkg.version)
+  .option('-s, --src <path>', '指定需要优化的amd文件路径')
+  .option('-o, --out <path>', '指定优化后输出文件的路径')
+  .option('-c, --config <path>', '指定优化配置文件')
+  .option('    --nocompress', '不压缩代码')
+  .option('    --watch', '监视文件变动')
+  .parse(process.argv);
+
+/**
+ * 格式化文件路径为glob
+ * @param src
+ * @returns {String}
+ * @private
+ */
+function _formatGlobStr(src) {
+  try {
+    const stat = fs.statSync(src);
+
+    if (stat.isDirectory()) {
+      src = path.join(src, '**/*');
+    }
+
+    return src;
+
+  } catch (ignore) {
+    return src;
+  }
+}
+
+/**
+ * 优化amd模块js文件
+ * @param filePath
+ * @private
+ */
+function _optimizeAmd(filePath) {
+  // 确保需要优化的文件是未优化的amd形式的js文件
+  if (path.extname(filePath) === '.js' && !filePath.includes('.min.js')) {
+    // 文件名
+    const basename = path.basename(filePath, path.extname(filePath));
+    // 文件目录
+    const basedir = path.dirname(filePath);
+    // 输出
+    const out = program.out ? filePath.replace(basedir.split(path.sep)[0], program.out) :
+      path.join(basedir, basename + '.min.js');
+
+    // 优化配置
+    let option = {
+      baseUrl: path.resolve(basedir),
+      name: basename,
+      out: path.resolve(out),
+      optimize: program.nocompress ? 'none' : 'uglify',
+      findNestedDependencies: true,
+      onBuildWrite: (moduleName, path, contents) => {
+        // 删除调试用的模块随机数配置
+        const pattern = 'urlArgs: "bust=" + (new Date()).getTime(),';
+        return contents.replace(pattern, '');
+      }
+    };
+    // 指定配置文件
+    if (program.config) {
+      option.mainConfigFile = path.resolve(program.config);
+    }
+
+    // 调用优化
+    requirejs.optimize(
+      option,
+      buildResponse => {
+        log('optimized: '.cyan + filePath + ' => ' + out.magenta);
+      },
+      err => {
+        log(err);
+      });
+  }
+}
+
+if (program.src) {
+
+  glob(_formatGlobStr(program.src), {}, (err, files) => {
+    if (err) {
+      log(err);
+    } else {
+
+      if (files.length) {
+        files.forEach(file => {
+          _optimizeAmd(file);
+        });
+      } else {
+        log('没有可优化文件的哦!'.yellow);
+      }
+    }
+  });
+  
+  // 启用监视
+  if (program.watch) {
+    // 终端提示
+    log(('Watching ' + program.src + '! Use `Ctrl + C` to stop!').yellow);
+    // 调用监视器
+    watch([_formatGlobStr(program.src)])
+      .on('change', (file, stat) => {
+        _optimizeAmd(file);
+      })
+      .on('add', (file, stat) => {
+        _optimizeAmd(file);
+      });
+  }
+
+} else {
+  log([
+    'Nothing to do! Use `rc -h` to get help!',
+    '什么都没有发生! 使用 `rc -h` 查看帮助'
+  ].join('\n').yellow);
+}
