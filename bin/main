@@ -1,130 +1,146 @@
 #!/usr/bin/env node
-
 'use strict';
 
-const path = require('path');
-const http = require('http');
-const fs = require('fs');
-const colors = require('colors');
-const fse = require('fs-extra');
-const program = require('commander');
-const requirejs = require('requirejs');
-const glob = require('glob');
-const watch = require('glob-watcher');
-const pkg = require('../package.json');
+require('colors');
 
-const log = console.log;
+require('babel-polyfill');
 
-program
-  .version(pkg.version)
-  .option('-s, --src <path>', '指定需要优化的amd文件路径')
-  .option('-o, --out <path>', '指定优化后输出文件的路径')
-  .option('-c, --config <path>', '指定优化配置文件')
-  .option('    --nocompress', '不压缩代码')
-  .option('    --watch', '监视文件变动')
-  .parse(process.argv);
+var _path = require('path');
 
-/**
- * 格式化文件路径为glob
- * @param src
- * @returns {String}
- * @private
- */
-function _formatGlobStr(src) {
-  try {
-    const stat = fs.statSync(src);
+var _path2 = _interopRequireDefault(_path);
 
-    if (stat.isDirectory()) {
-      src = path.join(src, '**/*');
+var _fs = require('fs');
+
+var _fs2 = _interopRequireDefault(_fs);
+
+var _commander = require('commander');
+
+var _commander2 = _interopRequireDefault(_commander);
+
+var _requirejs = require('requirejs');
+
+var _requirejs2 = _interopRequireDefault(_requirejs);
+
+var _glob = require('glob');
+
+var _glob2 = _interopRequireDefault(_glob);
+
+var _globWatcher = require('glob-watcher');
+
+var _globWatcher2 = _interopRequireDefault(_globWatcher);
+
+var _package = require('../package.json');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var log = console.log;
+
+var rcFilePath = void 0;
+
+_commander2.default.version(_package.version).usage('<path> [options]').arguments('<path>').option('-f, --out-file <path>', '指定输出文件路径').option('-d, --out-dir <path>', '指定输出目录路径').option('-c, --config <path>', '指定优化配置文件路径').option('    --nocompress', '不压缩代码').option('-w, --watch', '监视文件变动').action(function (file) {
+  rcFilePath = file;
+
+  _isFile(file) ? _doFile(file) : _doDir(file);
+}).parse(process.argv);
+
+function _doFile(file) {
+  var ext = _path2.default.extname(file);
+  var basename = _path2.default.basename(file);
+  var output = _commander2.default.outFile || file.replace(ext, '.r.js');
+
+  if (!_path2.default.extname(output)) {
+    output = _path2.default.join(output, basename.replace(ext, '.r.js'));
+  }
+
+  if (_commander2.default.watch) {
+    (0, _globWatcher2.default)(file).on('change', function (p) {
+      _optimizeAmd(file, output);
+    });
+
+    log(['Watching ' + file + '! Use `Ctrl + C` to stop!', '正在监视 ' + file + '! `Ctrl + C` 停止'].join('\n').yellow);
+  }
+
+  _optimizeAmd(file, output);
+}
+
+function _doDir(file) {
+  var pattern = _path2.default.join(file, '**/*.js');
+  var outDir = _commander2.default.outDir;
+  var formatOutputUrl = function formatOutputUrl(file) {
+    var output = void 0;
+
+    if (outDir && outDir !== rcFilePath) {
+      output = file.replace(rcFilePath, outDir);
+    } else {
+      output = file.replace('js', 'r.js');
     }
 
-    return src;
+    return output;
+  };
 
-  } catch (ignore) {
-    return src;
+  (0, _glob2.default)(pattern, null, function (e, files) {
+    if (e) {
+      log(e.message.red);
+    } else {
+      files.forEach(function (file) {
+        _optimizeAmd(file, formatOutputUrl(file));
+      });
+    }
+  });
+
+  if (_commander2.default.watch) {
+    var handle = function handle(file) {
+      _optimizeAmd(file, formatOutputUrl(file));
+    };
+
+    (0, _globWatcher2.default)(pattern).on('add', handle).on('change', handle);
   }
 }
 
-/**
- * 优化amd模块js文件
- * @param filePath
- * @private
- */
-function _optimizeAmd(filePath) {
+function _isFile(file) {
+  try {
+    return _fs2.default.statSync(file).isFile();
+  } catch (e) {
+    log(e.message.red);
+  }
+}
+
+function _isJsFile(file) {
+  return _path2.default.extname(filePath) === '.js' && !filePath.includes('.r.js');
+}
+
+function _optimizeAmd(file, output) {
   // 确保需要优化的文件是未优化的amd形式的js文件
-  if (path.extname(filePath) === '.js' && !filePath.includes('.min.js')) {
-    // 文件名
-    const basename = path.basename(filePath, path.extname(filePath));
-    // 文件目录
-    const basedir = path.dirname(filePath);
-    // 输出
-    const out = program.out ? filePath.replace(basedir.split(path.sep)[0], program.out) :
-      path.join(basedir, basename + '.min.js');
+  if (_isFile(file)) {
 
     // 优化配置
-    let option = {
-      baseUrl: path.resolve(basedir),
-      name: basename,
-      out: path.resolve(out),
-      optimize: program.nocompress ? 'none' : 'uglify',
+    var option = {
+      baseUrl: _path2.default.dirname(file),
+      name: _path2.default.basename(file, '.js'),
+      out: output,
+      optimize: _commander2.default.nocompress ? 'none' : 'uglify',
       findNestedDependencies: true,
-      onBuildWrite: (moduleName, path, contents) => {
+      onBuildWrite: function onBuildWrite(moduleName, path, contents) {
         // 删除调试用的模块随机数配置
-        const pattern = 'urlArgs: "bust=" + (new Date()).getTime(),';
+        var pattern = 'urlArgs: "bust=" + (new Date()).getTime(),';
         return contents.replace(pattern, '');
       }
     };
+
     // 指定配置文件
-    if (program.config) {
-      option.mainConfigFile = path.resolve(program.config);
+    if (_commander2.default.config) {
+      option.mainConfigFile = _commander2.default.config;
     }
 
     // 调用优化
-    requirejs.optimize(
-      option,
-      buildResponse => {
-        log('optimized: '.cyan + filePath + ' => ' + out.magenta);
-      },
-      err => {
-        log(err);
-      });
+    _requirejs2.default.optimize(option, function (buildResponse) {
+      log(['optimized:'.cyan, file, '=>', output.magenta, new Date().toLocaleString()].join(' '));
+    }, function (err) {
+      log(err.message.red);
+    });
   }
 }
 
-if (program.src) {
-
-  glob(_formatGlobStr(program.src), {}, (err, files) => {
-    if (err) {
-      log(err);
-    } else {
-
-      if (files.length) {
-        files.forEach(file => {
-          _optimizeAmd(file);
-        });
-      } else {
-        log('没有可优化文件的哦!'.yellow);
-      }
-    }
-  });
-  
-  // 启用监视
-  if (program.watch) {
-    // 终端提示
-    log(('Watching ' + program.src + '! Use `Ctrl + C` to stop!').yellow);
-    // 调用监视器
-    watch([_formatGlobStr(program.src)])
-      .on('change', (file, stat) => {
-        _optimizeAmd(file);
-      })
-      .on('add', (file, stat) => {
-        _optimizeAmd(file);
-      });
-  }
-
-} else {
-  log([
-    'Nothing to do! Use `rc -h` to get help!',
-    '什么都没有发生! 使用 `rc -h` 查看帮助'
-  ].join('\n').yellow);
+if (!rcFilePath) {
+  log(['Nothing to do! Use `rc -h` to get help!', '什么都没有发生! 使用 `rc -h` 查看帮助'].join('\n').yellow);
 }

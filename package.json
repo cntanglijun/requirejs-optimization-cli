@@ -1,11 +1,12 @@
 {
   "name": "requirejs-optimization-cli",
-  "version": "0.0.1-alpha",
+  "version": "0.0.2-alpha",
   "bin": {
     "rc": "./bin/main"
   },
   "description": "requirejs模块优化工具",
   "dependencies": {
+    "babel-polyfill": "^6.13.0",
     "colors": "^1.1.2",
     "commander": "^2.9.0",
     "fs-extra": "^0.30.0",
@@ -13,8 +14,11 @@
     "glob-watcher": "^3.0.0",
     "requirejs": "^2.2.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "es62bin-cli": "0.0.6-alpha"
+  },
   "scripts": {
+    "compile-bin": "es62bin src/bin/main -o bin/main",
     "test": ""
   },
   "author": "cntanglijun",

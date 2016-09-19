@@ -14,16 +14,17 @@ npm i requirejs-optimization-cli -g
 ## 用法(Usage)
 
 ```bash
-rc --src <path> --out <path> --config <path>
+rc <path> [options]
 ```
 
-|参数             |说明            |
-|:---------------:|:--------------:|
-|--src &lt;path&gt;|指定需要优化的文件或目录|
-|--output &lt;path&gt;|设置输出路径(默认在指定文件目录下生成对应的xx.min.js)|
-|--config|设置指定requirejs配置文件路径|
-|--nocompress|不压缩文件|
-|--watch|监视文件变动|
+| 参数 | 必填 | 说明 |
+|:-:|:-:|:-:|
+| &lt;path&gt; | 是 | 指定 amd 文件 |
+| -f &lt;path&gt; | 否 | 输入文件到指定路径 |
+| -d &lt;path&gt; | 否 | 输入文件到指定目录 |
+| -c &lt;path&gt; | 否 | 指定 amd 配置文件路径 |
+| -w | 否 | 监视文件变动 |
+| --nocompress | 否 | 不压缩文件 |
 
 ## License
 

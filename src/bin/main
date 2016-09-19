@@ -1,0 +1,149 @@
+'use strict';
+
+import 'colors';
+import 'babel-polyfill';
+import path from 'path';
+import fs from 'fs';
+import program from 'commander';
+import requirejs from 'requirejs';
+import glob from 'glob';
+import watch from 'glob-watcher';
+import { version } from '../package.json';
+
+const log = console.log;
+
+let rcFilePath;
+
+program
+  .version( version )
+  .usage( '<path> [options]' )
+  .arguments( '<path>' )
+  .option( '-f, --out-file <path>', '指定输出文件路径' )
+  .option( '-d, --out-dir <path>', '指定输出目录路径' )
+  .option( '-c, --config <path>', '指定优化配置文件路径' )
+  .option( '    --nocompress', '不压缩代码' )
+  .option( '-w, --watch', '监视文件变动' )
+  .action( file => {
+    rcFilePath = file;
+
+    _isFile( file ) ? _doFile( file ) : _doDir( file );
+  } )
+  .parse( process.argv );
+
+
+function _doFile( file ) {
+  const ext = path.extname( file );
+  const basename = path.basename( file );
+  let output = program.outFile || file.replace( ext, '.r.js' );
+
+  if ( !path.extname( output ) ) {
+    output = path.join( output, basename.replace( ext, '.r.js' ) );
+  }
+
+  if ( program.watch ) {
+    watch( file ).on( 'change', p => { _optimizeAmd( file, output ) } );
+
+    log( [
+      'Watching ' + file + '! Use `Ctrl + C` to stop!',
+      '正在监视 ' + file + '! `Ctrl + C` 停止'
+    ].join( '\n' ).yellow );
+  }
+
+  _optimizeAmd( file, output );
+
+}
+
+function _doDir( file ) {
+  const pattern = path.join( file, '**/*.js' );
+  const outDir = program.outDir;
+  const formatOutputUrl = file => {
+    let output;
+
+    if ( outDir && outDir !== rcFilePath ) {
+      output = file.replace( rcFilePath, outDir );
+    } else {
+      output = file.replace( 'js', 'r.js' );
+    }
+
+    return output;
+  }
+
+  glob( pattern, null, ( e, files ) => {
+    if ( e ) {
+      log( e.message.red );
+    } else {
+      files.forEach( file => {
+        _optimizeAmd( file, formatOutputUrl( file ) );
+      } );
+    }
+  } );
+
+  if ( program.watch ) {
+    const handle = file => {
+      _optimizeAmd( file, formatOutputUrl( file ) );
+    };
+
+    watch( pattern ).on( 'add', handle ).on( 'change', handle );
+  }
+
+}
+
+function _isFile( file ) {
+  try {
+    return fs.statSync( file ).isFile();
+  } catch ( e ) {
+    log( e.message.red );
+  }
+}
+
+function _isJsFile( file ) {
+  return path.extname( filePath ) === '.js' && !filePath.includes( '.r.js' );
+}
+
+function _optimizeAmd( file, output ) {
+  // 确保需要优化的文件是未优化的amd形式的js文件
+  if ( _isFile( file ) ) {
+
+    // 优化配置
+    let option = {
+      baseUrl: path.dirname( file ),
+      name: path.basename( file, '.js' ),
+      out: output,
+      optimize: program.nocompress ? 'none' : 'uglify',
+      findNestedDependencies: true,
+      onBuildWrite: ( moduleName, path, contents ) => {
+        // 删除调试用的模块随机数配置
+        const pattern = 'urlArgs: "bust=" + (new Date()).getTime(),';
+        return contents.replace( pattern, '' );
+      }
+    };
+
+    // 指定配置文件
+    if ( program.config ) {
+      option.mainConfigFile = program.config;
+    }
+
+    // 调用优化
+    requirejs.optimize(
+      option,
+      buildResponse => {
+        log( [
+          'optimized:'.cyan,
+          file,
+          '=>',
+          output.magenta,
+          new Date().toLocaleString()
+        ].join( ' ' ) );
+      },
+      err => {
+        log( err.message.red );
+      } );
+  }
+}
+
+if ( !rcFilePath ) {
+  log( [
+    'Nothing to do! Use `rc -h` to get help!',
+    '什么都没有发生! 使用 `rc -h` 查看帮助'
+  ].join( '\n' ).yellow );
+}
